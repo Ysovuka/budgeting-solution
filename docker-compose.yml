@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  solutiuons.budgeting.web:
+    image: solutiuons.budgeting.web
+    build:
+      context: ./Solutiuons.Budgeting.Web
+      dockerfile: Dockerfile

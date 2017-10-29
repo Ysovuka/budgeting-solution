@@ -1,0 +1,275 @@
+﻿@section Styles{ 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.5.0/fullcalendar.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.15/css/dataTables.bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/jquery-cron.css" />
+    }
+
+<div class="row">
+    <div class="col-sm-6 col-md-6 col-lg-6" style="margin-top: 25px;">
+        <div id='calendar' data-bind="fullCalendar: {
+            events: calendarEvents,
+            defaultView: 'agendaWeek',
+            allDaySlot: true,
+            scrollTime: '00:00:00',
+            maxTime: '24:00:00',
+            customButtons: {
+                prev: {
+                    click: function () {
+                        $('#calendar').fullCalendar('prev');
+                        getCalendarEvents();
+                    }
+                },
+                next: {
+                    click: function () {
+                        $('#calendar').fullCalendar('next');
+                        getCalendarEvents();
+                    }
+                }
+            },
+            header: {
+                left: 'prev',
+                center: 'title',
+                right: 'next'
+            },
+            editable: false,
+            themeSystem: 'bootstrap3',
+            height: parent,
+    }"></div>
+    </div>
+
+    <div class="col-sm-6 col-md-6 col-lg-6" style="margin-top: 25px;">
+        <table class="col-sm-12 col-md-12 col-lg-12 col-xs-12">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Start Date</th>
+                    <th>Minimum Payment</th>
+                </tr>
+            </thead>
+            <tbody data-bind="dataTablesForEach: {
+                data: weekEvents,
+                dataTableOptions: {
+                    responsive: true,
+                    paging: true,
+                    columns: [
+                        { name: 'Title' },
+                        { name: 'Start Date' },
+                        { name: 'Minimum Pyment' },
+                    ],
+                    language: {
+                        emptyTable: 'No calendar events available.'
+                    }
+                }
+            }">
+                <tr>
+                    <td data-bind="text: title"></td>
+                    <td data-bind="text: $parent.formatDate($data.start)"></td>
+                    <td data-bind="text: $parent.formatMinimumPayment($data.minimumPayment())"></td>
+                </tr>
+            </tbody>
+
+            <tr>
+                <td>TOTAL:</td>
+                <td></td>
+                <td data-bind="text: weekTotal()"></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<div class="row" style="margin-top: 25px;">
+    <div class="col-sm-12 col-md-12 col-lg-12">
+        <table class="table table-responsive">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Start</th>
+                    <th>Minimum Payment</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="text" id="name" class="form-control"/></td>
+                    <td><div id="cronExpression"></div></td>
+                    <td><input type="number" id="minimumPayment" class="form-control"/></td>
+                    <td><button id="create" class="btn btn-default">Create</button></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts{ 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.4.2/knockout-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout.mapping/2.4.1/knockout.mapping.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/later/1.2.0/later.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.5.0/fullcalendar.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.15/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.15/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/js/knockout-3.4.2-fullCalendar-3.5.0.js"></script>
+    <script src="~/js/knockout-3.4.2-datatables-1.10.5.js"></script>
+    <script src="~/js/jquery-cron.js"></script>
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+                later.date.localTime();
+                $('#cronExpression').cron(); // apply cron with default options
+
+                $("#create").click(function () {
+                    var beginOfWeek = $('#calendar').fullCalendar('getDate');
+                    beginOfWeek = beginOfWeek.startOf('week');
+                    var cronExpression = $("#cronExpression").cron("value");
+                    var event = {
+                        name: $("#name").val(),
+                        schedule: cronExpression,
+                        minimumPayment: $("#minimumPayment").val(),
+                        allDay: true,
+                    };
+
+                    viewModel.events.push(event);
+                    viewModel.calendarEvents.push(new CalendarEvent(event));
+                    setWeekEvents(event);
+
+                    $.ajax({
+                        type: 'POST',
+                        url: '@(Url.Action("Events", "Calendar"))',
+                        contentType: 'application/json',
+                        dataType: 'json',
+                        data: JSON.stringify(event),
+                        success: function () {
+
+                        }
+                    });
+                });
+            });
+
+    </script>
+    
+    <script type="text/javascript">
+        function getCalendarEvents() {
+            viewModel.calendarEvents.valueHasMutated();
+            viewModel.weekEvents([]);
+
+            var events = viewModel.events();
+            for (var i = 0; i < events.length; i++) {
+                var event = ko.mapping.toJS(events[i]);
+                setWeekEvents(event);
+            }
+        }
+
+        function loadCalendarEvents() {
+            $.ajax({
+                url: '@Url.Action("Events", "Calendar")',
+                dataType: 'json',
+                success: function (events) {
+                    ko.mapping.fromJS(events,
+                        {
+                            create: function (options) {
+                                return {
+                                    id: options.data.id,
+                                    name: options.data.name,
+                                    schedule: options.data.schedule,
+                                    minimumPayment: options.data.minimumPayment,
+                                    allDay: options.data.allDay,
+                                }
+                            }
+                        },
+                        viewModel.events);
+
+                    for (var i = 0; i < events.length; i++) {
+                        var event = events[i];
+                        setWeekEvents(event);
+                    }
+
+                    ko.mapping.fromJS(events,
+                        {
+                            create: function (options) {
+                                return new CalendarEvent(options.data);
+                            }
+                        }, viewModel.calendarEvents);
+                }
+            });
+        }
+
+        function setWeekEvents(event) {
+            var beginOfWeek = $('#calendar').fullCalendar('getDate');
+            beginOfWeek = beginOfWeek.startOf('week');
+            var endOfWeek = $('#calendar').fullCalendar('getDate');
+            endOfWeek = endOfWeek.endOf('week');
+
+            var schedule = later.schedule(later.parse.cron(event.schedule, false));
+            var nextScheduleTime = moment(schedule.next(1, beginOfWeek));
+            var start = nextScheduleTime;
+
+            if (start >= beginOfWeek && start <= endOfWeek) {
+                viewModel.weekEvents.push(new ObservableCalendarEvent(event));
+
+                var calendarEvents = ko.utils.arrayFirst(viewModel.calendarEvents(), function (data) {
+                    return event.id === data.id && start.format() === data.start;
+                });
+
+                if (!calendarEvents || calendarEvents.length === 0) {
+                    viewModel.calendarEvents.push(new CalendarEvent(event));
+                }
+            }
+        };
+
+        function ObservableCalendarEvent(data) {
+            var self = this;
+            self.title = ko.observable(data.name);
+            var beginOfWeek = $('#calendar').fullCalendar('getDate');
+            beginOfWeek = beginOfWeek.startOf('week');
+            var schedule = later.schedule(later.parse.cron(data.schedule, false));
+            var nextScheduleTime = moment(schedule.next(1, beginOfWeek));
+            self.start = nextScheduleTime.format();
+            self.minimumPayment = ko.observable(data.minimumPayment);
+            self.allDay = data.allDay;
+        }
+
+        function CalendarEvent(data) {
+            var self = this;
+            self.id = data.id;
+            self.title = data.name;
+            var beginOfWeek = $('#calendar').fullCalendar('getDate');
+            beginOfWeek = beginOfWeek.startOf('week');
+            var schedule = later.schedule(later.parse.cron(data.schedule, false));
+            var nextScheduleTime = moment(schedule.next(1, beginOfWeek));
+            self.start = nextScheduleTime.format();
+            self.end = data.end;
+            self.allDay = data.allDay;
+        }
+
+        function CalendarViewModel() {
+            var self = this;
+            self.events = ko.observableArray([]);
+            self.calendarEvents = ko.observableArray([]);
+            self.weekEvents = ko.observableArray([]);
+
+            self.formatDate = function (date) {
+                return moment(date).format("YYYY-MM-DD hh:mm:ss A");
+            };
+
+            self.formatMinimumPayment = function (payment) {
+                return "$" + payment;
+            };
+
+            self.weekTotal = function () {
+                var total = 0.00;
+                var events = self.weekEvents();
+                for (var i = 0; i < events.length; i++) {
+                    total += parseInt(events[i].minimumPayment());
+                }
+                return "$" + total;
+            }
+        }
+        var viewModel = new CalendarViewModel();
+
+        ko.applyBindings(viewModel);
+
+        loadCalendarEvents();
+</script>
+}
